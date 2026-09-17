@@ -1,0 +1,6 @@
+[package]
+name = "shq"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Rank shell history matches by frequency instead of recency"
