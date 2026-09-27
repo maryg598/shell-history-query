@@ -39,10 +39,13 @@ $ cargo build --release
 
 ## status
 
-Parsing and frequency ranking both work today. Not done yet: fuzzy matching
-(currently plain substring), a `--since` date filter, and skipping lines
-that look like they contain a pasted secret. The parser's test suite in
-`src/history.rs` lists the history-format edge cases it already handles.
+Parsing and frequency ranking both work today. Matching is fuzzy: `gco`
+finds `git checkout main`, since a query only needs to appear as an
+in-order (not necessarily contiguous) subsequence of the command,
+case-insensitively. Not done yet: a `--since`/`--until` date filter using
+the parsed timestamps, and skipping lines that look like they contain a
+pasted secret. The parser's test suite in `src/history.rs` lists the
+history-format edge cases it already handles.
 
 ## license
 

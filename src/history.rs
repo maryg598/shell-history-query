@@ -103,14 +103,39 @@ fn parse_zsh_extended(line: &str) -> Option<(i64, String)> {
     Some((timestamp, command.to_string()))
 }
 
-/// Ranks commands containing `query` as a substring by how often they occur,
-/// most frequent first, ties broken alphabetically for stable output.
+/// True if every character of `query` appears in `command` in the same
+/// order, case-insensitively, though not necessarily contiguously. This is
+/// a superset of substring matching: it also catches things like `gco`
+/// matching `git checkout` or `dcupd` matching `docker compose up -d`.
+fn is_subsequence_match(command: &str, query: &str) -> bool {
+    if query.is_empty() {
+        return true;
+    }
+
+    let query_lower = query.to_lowercase();
+    let command_lower = command.to_lowercase();
+    let mut query_chars = query_lower.chars();
+    let mut next_query_char = query_chars.next();
+
+    for c in command_lower.chars() {
+        if next_query_char == Some(c) {
+            next_query_char = query_chars.next();
+        }
+    }
+
+    next_query_char.is_none()
+}
+
+/// Ranks commands whose characters contain `query` as a subsequence, in
+/// order but not necessarily contiguous and case-insensitive, by how often
+/// they occur, most frequent first, ties broken alphabetically for stable
+/// output.
 pub fn rank_by_query(entries: &[HistoryEntry], query: &str, limit: usize) -> Vec<(usize, String)> {
     use std::collections::HashMap;
 
     let mut counts: HashMap<&str, usize> = HashMap::new();
     for entry in entries {
-        if entry.command.contains(query) {
+        if is_subsequence_match(&entry.command, query) {
             *counts.entry(entry.command.as_str()).or_insert(0) += 1;
         }
     }
@@ -215,5 +240,26 @@ mod tests {
         let entries = parse("ls -la\ndocker ps\n");
         let ranked = rank_by_query(&entries, "docker", 10);
         assert_eq!(ranked, vec![(1, "docker ps".to_string())]);
+    }
+
+    #[test]
+    fn subsequence_matching_is_case_insensitive_and_order_sensitive() {
+        assert!(is_subsequence_match("docker ps", "docker"));
+        assert!(is_subsequence_match("docker ps", "DOCKER"));
+        assert!(is_subsequence_match("git checkout main", "gco"));
+        assert!(is_subsequence_match("docker compose up -d", "dcupd"));
+        assert!(is_subsequence_match("anything", ""));
+
+        // characters present but out of order should not match
+        assert!(!is_subsequence_match("docker ps", "sp"));
+        // query longer than the command can never match
+        assert!(!is_subsequence_match("ls", "lsla"));
+    }
+
+    #[test]
+    fn rank_by_query_matches_fuzzy_subsequences() {
+        let entries = parse("git checkout main\ngit checkout main\nls -la\n");
+        let ranked = rank_by_query(&entries, "gco", 10);
+        assert_eq!(ranked, vec![(2, "git checkout main".to_string())]);
     }
 }
